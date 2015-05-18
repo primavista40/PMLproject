@@ -1,0 +1,54 @@
+---
+title: "ML Project"
+author: "Pite"
+date: "Monday, May 18, 2015"
+output: html_document
+---
+
+In this particular project, we shall be looking to apply Machine Learning algorithm to classify several types of physical activities using the data about the movement of users' body. We first load necessary packages
+```{r}
+library(caret)
+library(randomForest)
+```
+Then, we read the data
+```{r}
+train<-read.csv("pml-training.csv")
+final<-read.csv("pml-testing.csv")
+```
+Note that I am calling the last 20 test cases as the 'final' training set as I will split the data in the training set for cross-validations.By looking at the data, we can see that the variables with the name begining with 'kurtosis', 'skewness' etc. have a lot of missing values(only around 1/20 is recorded+all missing in the final set). So, we can take those variables out of our model.
+```{r}
+factors<-colnames(train)
+smallTrain<-train[,-c(grep('kurtosis',factors),grep('skewness',factors),grep('avg',factors),grep('var',factors)
+          ,grep('stddev',factors),grep('min',factors),grep('max',factors),grep('amplitude',factors))]
+smallFinal<-final[,-c(grep('kurtosis',factors),grep('skewness',factors),grep('avg',factors),grep('var',factors)
+                    ,grep('stddev',factors),grep('min',factors),grep('max',factors),grep('amplitude',factors))]
+#also first 7 columns are irrelevant
+used<-smallTrain[,8:60]
+finalUsed<-smallFinal[,8:60]
+```
+Now that we have tidied our data, we will be looking to train our model. As we still have 53 variables left, it is still questionable if our model will lead to overfitting. Hence, we split our data into 70% training and 30% testing. 
+```{r}
+inTrain<-createDataPartition(used$classe,p=0.7,list=FALSE)
+trainUsed<-used[inTrain,]
+testUsed<-used[-inTrain,]
+```
+Since this is a classification problem, the most natural way of training this would be via decision trees. However, building just one tree seems to have quite a lot of variation to how variables are selected. We instead use the Random Forest method which takes the votes from 500 trees and decide the outcomes.
+```{r}
+modFit<-randomForest(classe~.,data=trainUsed)
+modFit
+```
+This have quite a small in sample rate(missing only 73 out of 13737 observations). However, this could be resulted from overfitting. Hence, we verify it on the 'train' set that we split earlier. We can then construct our confusion matrix. This is still a very good fit(missing ~35 out of 5885). So, we can expect the out of sample error to be very small(<1%).
+```{r}
+predicted<-predict(modFit,testUsed)
+table(predicted,testUsed$classe)
+```
+
+We can then build the final prediction on our 'final' test set
+```{r}
+answers<-as.character(predict(modFit,finalUsed))
+```
+
+In conclusion, although this Machine Learning algorithm gives very accurate prediction, it could take a really long time to run. We might be able to reduce the complexity of our computation for further scaling. We can look at the Gini importance factor to see which factor is the most influential and leace those that is not as important.
+```{r}
+importance(modFit)
+```
